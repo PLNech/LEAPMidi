@@ -1,6 +1,10 @@
 # LEAPMidi
 > A LEAPMotion -> MIDI Instrument controller
 
+LeapMIDI is a Javascript WebApp that reads your LeapMotion sensor data, transforms them into MIDi ControlChange messages,
+and sends them to your computer's `Midi Through` interface to control the instruments you connect to it.  
+In this proof-of-concept, LeapMidi is used to control [ParVagues](https://soundcloud.com/parvagues/)' track _Du Miel_'s instruments and effects.
+
 ## Usage
 
 1. Connect your Midi instrument to the `MIDI Through` port
@@ -11,3 +15,4 @@
 
 ## Demo
 
+![Screenshot: TidalCycles track controlled by MIDI Messages sent from a JS webapp reading LeapMotion sensor data](https://user-images.githubusercontent.com/1821404/140657932-93aafe9b-b980-4f08-91b1-ac4e7daae241.png)
