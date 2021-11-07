@@ -2,7 +2,13 @@
   <head>
     <title>LeapMIDI Prototype</title>
     <script src="lib/leap-1.1.1.js"></script>
+    <script src="lib/webmidi.min.js"></script>
     <script>
+      function normalizeCC(value, isRoll = false) {
+        return Math.abs( // FIXME: Not needed once below behaves correctly
+          Math.floor(64 + 64 * (isRoll ? value / 3 : value))
+        );
+      }
       var paused = false;
       window.onkeypress = function(e) {
         if (e.charCode == 32) {
@@ -13,6 +19,28 @@
           }
         }
       };
+
+      // Setup WebMidi
+      const midiName = "Midi Through";
+      var midiOutput = null;
+      WebMidi.enable(function (err) {
+
+        if (err) {
+          console.log("WebMidi could not be enabled.", err);
+        } else {
+          console.log("WebMidi enabled!", WebMidi.inputs, WebMidi.outputs);
+          WebMidi.outputs.forEach((output) => {
+            if (output.name.includes(midiName)) {
+              midiOutput = output;
+            } else {
+              console.log(`${midiName} not in ${output.name}:`, output);
+            }
+          });
+          console.log("Init MidiThrough:", midiOutput);
+        }
+      });
+
+
       var controller = new Leap.Controller();
       controller.loop(function(frame) {
         latestFrame = frame;
@@ -22,15 +50,33 @@
         }
 
         var str = "";
+        var count=0;
         for (var i in frame.handsMap) {
+          count++;
+          const cStr = `<br/>[${count}] `;
           var hand = frame.handsMap[i];
           str += "<p>" +
             "<strong>Roll:</strong> " + hand.roll() +
             "<br/><strong>Pitch:</strong> " + hand.pitch() +
             "<br/><strong>Yaw:</strong> " + hand.yaw() +
             "</p>";
+            const roll = normalizeCC(hand.roll(), true);
+            const pitch = normalizeCC(hand.pitch());
+            const yaw = normalizeCC(hand.yaw());
+            console.log(count, "RollCC:", roll,
+                        "PitchCC:", pitch,
+                        "YawCC:", yaw);
+            str += "<p>" +
+              cStr + "<strong>RollCC:</strong> " + roll +
+              cStr + "<strong>PitchCC:</strong> " + pitch +
+              cStr + "<strong>YawCC:</strong> " + yaw +
+              "</p>";
+
+            // MIDI Control: send interpreted movements as CC
+            // Using WebMidi...
+            console.log("Sending to", midiOutput, "/", midiOutput.name, ":", yaw);
+            midiOutput.sendControlChange(77, yaw);
         }
-        console.log(str);
         document.getElementById('out').innerHTML = str;
       });
       controller.on('ready', function() {
