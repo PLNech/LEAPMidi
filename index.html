@@ -4,10 +4,16 @@
     <script src="lib/leap-1.1.1.js"></script>
     <script src="lib/webmidi.min.js"></script>
     <script>
+      function normalize(val, min, max) { return (val - min) / (max - min); }
+      function toCC(val) { return Math.floor(126 * val); }
+      function sendControlChange(cc, value) { }
       function normalizeCC(value, isRoll = false) {
-        return Math.abs( // FIXME: Not needed once below behaves correctly
-          Math.floor(64 + 64 * (isRoll ? value / 3 : value))
-        );
+        const min = -3;
+        const max = isRoll ? 3 : 2;
+        return Math.floor(normalize(value, min, max) * 127);
+        // return Math.abs( // FIXME: Not needed once below behaves correctly
+          // Math.floor(64 + 64 * (isRoll ? value / 3 : value))
+        // );
       }
       var paused = false;
       window.onkeypress = function(e) {
@@ -41,43 +47,137 @@
       });
 
 
+
+      const ccMap = { // Here goes the track-specific mapping
+        djf: 49,
+        crush: 53,
+        modIndex: 54,
+        gain: {
+          master: 77,
+          kick: 78,
+          snare: 79,
+          drum: 80,
+          bass: 81,
+          keys: 82,
+        }
+      };
+
+
       var controller = new Leap.Controller();
       controller.loop(function(frame) {
-        latestFrame = frame;
-        if (paused) {
-          document.getElementById('pause').innerHTML = "<strong>PAUSED</strong>";
-          return;
-        }
+        try {
+          latestFrame = frame;
+          if (paused) {
+            document.getElementById('pause').innerHTML = "<strong>PAUSED</strong>";
+            return;
+          }
 
-        var str = "";
-        var count=0;
-        for (var i in frame.handsMap) {
-          count++;
-          const cStr = `<br/>[${count}] `;
-          var hand = frame.handsMap[i];
-          str += "<p>" +
-            "<strong>Roll:</strong> " + hand.roll() +
-            "<br/><strong>Pitch:</strong> " + hand.pitch() +
-            "<br/><strong>Yaw:</strong> " + hand.yaw() +
-            "</p>";
-            const roll = normalizeCC(hand.roll(), true);
-            const pitch = normalizeCC(hand.pitch());
-            const yaw = normalizeCC(hand.yaw());
-            console.log(count, "RollCC:", roll,
-                        "PitchCC:", pitch,
-                        "YawCC:", yaw);
+          var str = "";
+          var count=0;
+          for (var i in frame.handsMap) {
+            count++;
+            const cStr = `<br/>[${count}] `;
+            var hand = frame.handsMap[i];
             str += "<p>" +
-              cStr + "<strong>RollCC:</strong> " + roll +
-              cStr + "<strong>PitchCC:</strong> " + pitch +
-              cStr + "<strong>YawCC:</strong> " + yaw +
+              "<strong>Roll:</strong> " + hand.roll() +
+              "<br/><strong>Pitch:</strong> " + hand.pitch() +
+              "<br/><strong>Yaw:</strong> " + hand.yaw() +
               "</p>";
+              const roll = normalizeCC(hand.roll(), true);
+              const pitch = normalizeCC(hand.pitch());
+              const yaw = normalizeCC(hand.yaw());
+              console.log(count, "RollCC:", roll,
+                          "PitchCC:", pitch,
+                          "YawCC:", yaw);
+              str += "<p>" +
+                cStr + "<strong>RollCC:</strong> " + roll +
+                cStr + "<strong>PitchCC:</strong> " + pitch +
+                cStr + "<strong>YawCC:</strong> " + yaw +
+                "</p>";
 
-            // MIDI Control: send interpreted movements as CC
-            // Using WebMidi...
-            console.log("Sending to", midiOutput, "/", midiOutput.name, ":", yaw);
-            midiOutput.sendControlChange(77, yaw);
+
+              // MIDI Control: send interpreted movements as CC
+              // E.G. Use roll to control DJF
+              // midiOutput.sendControlChange(ccMap.djf, roll);
+
+              // Use finger distal position to control individual instruments
+              hand.fingers.forEach((finger) => {
+                if (finger.extended) {
+                  console.log(finger.type);
+                  console.log(finger.dipPosition);
+
+                  const x = finger.dipPosition[0];
+                  const y = finger.dipPosition[1];
+                  const z = finger.dipPosition[2];
+
+                  str += "<p>" +
+                    `<strong>X:</strong> ${x}` +
+                    `<strong>Y:</strong> ${y}` +
+                    `<strong>Z:</strong> ${z}` +
+                    "</p>";
+                  const xCC = toCC(normalize(x, -300, 300));
+                  const yCC = toCC(normalize(y, 0, 450));
+                  const zCC = toCC(normalize(z, -300, 300));
+                  str += "<p>" +
+                    `<strong>XCC:</strong> ${xCC}` +
+                    `<strong>YCC:</strong> ${yCC}` +
+                    `<strong>ZCC:</strong> ${zCC}` +
+                    "</p>";
+
+                  switch (hand.type) {
+                    case "left": {
+                      switch (finger.type) {
+                        case 0:
+                          // Thumb: control DJF
+                          midiOutput.sendControlChange(ccMap.djf, 0.25 + yCC / 2);
+                          break;
+                        case 1:
+                          // Index: control rhythmics
+                          midiOutput.sendControlChange(ccMap.gain.kick,  yCC);
+                          midiOutput.sendControlChange(ccMap.gain.snare, yCC);
+                          midiOutput.sendControlChange(ccMap.gain.drum,  yCC);
+                          break;
+                        case 2:
+                          // Majeur: bassline
+                          midiOutput.sendControlChange(ccMap.gain.bass,  yCC);
+                          break;
+                        case 3:
+                            // Annulaire: auriculaire
+                          midiOutput.sendControlChange(ccMap.gain.keys, yCC);
+                          break;
+                      }
+                  }
+                  case "right": {
+                        switch (finger.type) {
+                          case 0:
+                            // Thumb: control master
+                            midiOutput.sendControlChange(ccMap.gain.master, yCC);
+                            break;
+                          case 1:
+                            // Index: control rhythmics
+                            midiOutput.sendControlChange(ccMap.gain.kick,  yCC);
+                            midiOutput.sendControlChange(ccMap.gain.snare, yCC);
+                            midiOutput.sendControlChange(ccMap.gain.drum,  yCC);
+                            break;
+                          case 2:
+                            // Majeur: bassline
+                            midiOutput.sendControlChange(ccMap.gain.bass,  yCC);
+                            break;
+                          case 3:
+                            // Annulaire: clavier
+                            midiOutput.sendControlChange(ccMap.gain.keys, yCC);
+                            break;
+                        }
+                    }
+                  }
+                }
+              });
+
+          }
+          document.getElementById('out').innerHTML = str;
+        } catch (e) {
+          console.error(e);
         }
-        document.getElementById('out').innerHTML = str;
       });
       controller.on('ready', function() {
           console.log("ready");
@@ -103,6 +203,13 @@
     </script>
   </head>
   <body>
+    <br />
+    <h1>LeapMIDI</h1>
+    <h2>Prototype: TidalCycles/SuperCollider MIDI Input</h2>
+    <p>This is a demonstration of LeapMIDI: A setup to control MIDI instruments
+      using a LEAPMotion tool.</p>
+    <p> Here I'm controlling a TidalCycles track via Midi CC messages,
+      changing both individual instruments and global effects at the move of my fingers.
     <div id="pause"></div>
     <div id="out"></div>
   </body>
