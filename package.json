@@ -1,0 +1,8 @@
+{
+  "name": "LeapMIDI",
+  "version": "1.0.0",
+  "description": "LeapMotion MIDI Controller",
+  "main": "index.js",
+  "author": "ParVagues <parvagues@plnech.fr>",
+  "license": "MIT"
+}
