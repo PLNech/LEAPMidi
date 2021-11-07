@@ -8,6 +8,7 @@ In this proof-of-concept, LeapMidi is used to control [ParVagues](https://soundc
 
 ## Usage
 
+0. Setup LeapMotion to send messages readable by their [SDKs](https://developer.leapmotion.com/)
 1. Connect your Midi instrument to the `MIDI Through` port
 2. open [index.html](./index.html) in your WebMidi-enabled browser
 3. Run [TidalCycles with ParVagues' Du Miel track](https://git.plnech.fr/Tidal/) or adapt the code to map to another use-case
